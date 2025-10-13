@@ -127,6 +127,10 @@ Router createRouter() {
 }
 
 void main() async {
+  // Configurar el puerto desde la variable de entorno
+  final port = int.parse(Platform.environment['PORT'] ?? '8080');
+  final ip = Platform.environment['HOST'] ?? '0.0.0.0';
+
   final handler = Pipeline()
       .addMiddleware(logRequests())
       .addMiddleware(corsHeaders(headers: {
@@ -136,6 +140,11 @@ void main() async {
       }))
       .addHandler(createRouter());
 
-  final server = await shelf_io.serve(handler, '0.0.0.0', 8080);
-  print('Servidor corriendo en http://localhost:8080');
+  try {
+    final server = await shelf_io.serve(handler, ip, port);
+    print('Servidor corriendo en http://${server.address.host}:${server.port}');
+  } catch (e) {
+    print('Error al iniciar el servidor: $e');
+    exit(1);
+  }
 }
