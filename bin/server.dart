@@ -21,8 +21,8 @@ Router createRouter() {
       final videos = await yt.search.getVideos(query);
       final results = videos.map((v) => {
         'id': v.id.value,
-        'title': v.title,
-        'author': v.author,
+        'title': v.title ?? 'Sin título',
+        'author': v.author ?? 'Autor desconocido',
         'duration': v.duration?.inSeconds ?? 0,
       }).toList();
 
@@ -30,8 +30,10 @@ Router createRouter() {
         jsonEncode(results),
         headers: {'Content-Type': 'application/json'},
       );
-    } catch (e) {
-      return Response(500, body: 'Error: $e');
+    } catch (e, stackTrace) {
+      // Opcional: imprime el error en los logs del contenedor
+      stderr.writeln('Error en /search: $e\n$stackTrace');
+      return Response(500, body: 'Error interno al buscar videos');
     }
   });
 
@@ -55,8 +57,9 @@ Router createRouter() {
         jsonEncode({'url': streamUrl}),
         headers: {'Content-Type': 'application/json'},
       );
-    } catch (e) {
-      return Response(500, body: 'Error: $e');
+    } catch (e, stackTrace) {
+      stderr.writeln('Error en /stream: $e\n$stackTrace');
+      return Response(500, body: 'Error al obtener el stream de audio');
     }
   });
 
