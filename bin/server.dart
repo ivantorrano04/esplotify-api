@@ -7,6 +7,27 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
 final yt = YoutubeExplode();
 
+// Middleware para habilitar CORS
+Handler corsMiddleware(Handler handler) {
+  return (Request request) async {
+    if (request.method == 'OPTIONS') {
+      return Response.ok('', headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      });
+    }
+
+    final response = await handler(request);
+    return response.change(headers: {
+      ...response.headers,
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    });
+  };
+}
+
 Router createRouter() {
   final router = Router();
 
@@ -30,10 +51,9 @@ Router createRouter() {
         jsonEncode(results),
         headers: {'Content-Type': 'application/json'},
       );
-    } catch (e, stackTrace) {
-      // Opcional: imprime el error en los logs del contenedor
-      stderr.writeln('Error en /search: $e\n$stackTrace');
-      return Response(500, body: 'Error interno al buscar videos');
+    } catch (e, stack) {
+      stderr.writeln('Error en /search: $e\n$stack');
+      return Response(500, body: 'Error al buscar videos');
     }
   });
 
@@ -57,8 +77,8 @@ Router createRouter() {
         jsonEncode({'url': streamUrl}),
         headers: {'Content-Type': 'application/json'},
       );
-    } catch (e, stackTrace) {
-      stderr.writeln('Error en /stream: $e\n$stackTrace');
+    } catch (e, stack) {
+      stderr.writeln('Error en /stream: $e\n$stack');
       return Response(500, body: 'Error al obtener el stream de audio');
     }
   });
@@ -67,10 +87,21 @@ Router createRouter() {
 }
 
 void main() async {
+  // Asegurar cierre limpio del cliente HTTP
+  exitCode = 0;
+  unawaited(ProcessSignal.sigint.watch().listen((_) async {
+    await yt.close();
+    exit(0);
+  }));
+  unawaited(ProcessSignal.sigterm.watch().listen((_) async {
+    await yt.close();
+    exit(0);
+  }));
+
   final handler = const Pipeline()
       .addMiddleware(logRequests())
-      .addHandler(createRouter());
+      .addHandler(corsMiddleware(createRouter()));
 
   final server = await shelf_io.serve(handler, '0.0.0.0', 8080);
-  print('Servidor corriendo en http://localhost:8080');
+  print('✅ Servidor corriendo en http://localhost:8080');
 }
