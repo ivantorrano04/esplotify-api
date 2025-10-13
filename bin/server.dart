@@ -94,7 +94,6 @@ Router createRouter() {
         jsonEncode({
           'url': streamUrl,
           'bitrate': audioStream.bitrate.bitsPerSecond,
-          'codec': audioStream.codec.name,
           'container': audioStream.container.name,
         }),
         headers: {
