@@ -7,7 +7,7 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
 final yt = YoutubeExplode();
 
-// Middleware para habilitar CORS
+// Middleware CORS
 Handler corsMiddleware(Handler handler) {
   return (Request request) async {
     if (request.method == 'OPTIONS') {
@@ -31,7 +31,6 @@ Handler corsMiddleware(Handler handler) {
 Router createRouter() {
   final router = Router();
 
-  // Búsqueda de videos
   router.get('/search', (Request req) async {
     final query = req.url.queryParameters['q'] ?? '';
     if (query.isEmpty) {
@@ -52,12 +51,11 @@ Router createRouter() {
         headers: {'Content-Type': 'application/json'},
       );
     } catch (e, stack) {
-      stderr.writeln('Error en /search: $e\n$stack');
+      stderr.writeln('🔍 Error en /search: $e\n$stack');
       return Response(500, body: 'Error al buscar videos');
     }
   });
 
-  // Obtener URL de stream de audio
   router.get('/stream', (Request req) async {
     final id = req.url.queryParameters['id'];
     if (id == null || id.isEmpty) {
@@ -71,14 +69,12 @@ Router createRouter() {
         return Response(404, body: 'No se encontró stream de audio');
       }
 
-      final streamUrl = audioStream.url.toString();
-
       return Response.ok(
-        jsonEncode({'url': streamUrl}),
+        jsonEncode({'url': audioStream.url.toString()}),
         headers: {'Content-Type': 'application/json'},
       );
     } catch (e, stack) {
-      stderr.writeln('Error en /stream: $e\n$stack');
+      stderr.writeln('🔊 Error en /stream: $e\n$stack');
       return Response(500, body: 'Error al obtener el stream de audio');
     }
   });
@@ -87,10 +83,10 @@ Router createRouter() {
 }
 
 void main() async {
-  // Usa el puerto proporcionado por Cloud Run (o 8080 por defecto)
+  // Usa el puerto que Cloud Run proporciona
   final port = int.parse(Platform.environment['PORT'] ?? '8080');
 
-  // Configura cierre limpio al recibir señales de terminación
+  // Cierre limpio al terminar
   unawaited(ProcessSignal.sigint.watch().listen((_) async {
     await yt.close();
     exit(0);
@@ -104,6 +100,9 @@ void main() async {
       .addMiddleware(logRequests())
       .addHandler(corsMiddleware(createRouter()));
 
-  final server = await shelf_io.serve(handler, '0.0.0.0', port);
-  print('✅ Servidor corriendo en http://0.0.0.0:$port');
+  await shelf_io.serve(handler, '0.0.0.0', port);
+
+  // Mensaje CRÍTICO: Cloud Run espera ver esto para saber que el contenedor está listo
+  print('✅ LISTO: servidor escuchando en puerto $port');
+  stdout.flush(); // fuerza salida inmediata a los logs
 }
