@@ -31,6 +31,12 @@ Handler corsMiddleware(Handler handler) {
 Router createRouter() {
   final router = Router();
 
+  // Ruta de prueba para Cloud Run (healthcheck)
+  router.get('/', (Request req) {
+    return Response.ok('✅ Esplotify API corriendo correctamente');
+  });
+
+  // Búsqueda de videos
   router.get('/search', (Request req) async {
     final query = req.url.queryParameters['q'] ?? '';
     if (query.isEmpty) {
@@ -41,8 +47,8 @@ Router createRouter() {
       final videos = await yt.search.getVideos(query);
       final results = videos.map((v) => {
         'id': v.id.value,
-        'title': v.title ?? 'Sin título',
-        'author': v.author ?? 'Autor desconocido',
+        'title': v.title,
+        'author': v.author,
         'duration': v.duration?.inSeconds ?? 0,
       }).toList();
 
@@ -52,10 +58,11 @@ Router createRouter() {
       );
     } catch (e, stack) {
       stderr.writeln('🔍 Error en /search: $e\n$stack');
-      return Response(500, body: 'Error al buscar videos');
+      return Response.internalServerError(body: 'Error al buscar videos');
     }
   });
 
+  // Stream de audio
   router.get('/stream', (Request req) async {
     final id = req.url.queryParameters['id'];
     if (id == null || id.isEmpty) {
@@ -75,34 +82,21 @@ Router createRouter() {
       );
     } catch (e, stack) {
       stderr.writeln('🔊 Error en /stream: $e\n$stack');
-      return Response(500, body: 'Error al obtener el stream de audio');
+      return Response.internalServerError(body: 'Error al obtener stream de audio');
     }
   });
 
   return router;
 }
 
-void main() async {
-  // Usa el puerto que Cloud Run proporciona
+Future<void> main() async {
   final port = int.parse(Platform.environment['PORT'] ?? '8080');
-
-  // Cierre limpio al terminar
-  unawaited(ProcessSignal.sigint.watch().listen((_) async {
-    await yt.close();
-    exit(0);
-  }));
-  unawaited(ProcessSignal.sigterm.watch().listen((_) async {
-    await yt.close();
-    exit(0);
-  }));
 
   final handler = const Pipeline()
       .addMiddleware(logRequests())
       .addHandler(corsMiddleware(createRouter()));
 
-  await shelf_io.serve(handler, '0.0.0.0', port);
-
-  // Mensaje CRÍTICO: Cloud Run espera ver esto para saber que el contenedor está listo
-  print('✅ LISTO: servidor escuchando en puerto $port');
-  stdout.flush(); // fuerza salida inmediata a los logs
+  final server = await shelf_io.serve(handler, InternetAddress.anyIPv4, port);
+  print('🚀 Servidor escuchando en puerto ${server.port}');
+  print('🌍 URL: http://localhost:${server.port}');
 }
