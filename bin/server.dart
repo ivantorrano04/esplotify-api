@@ -87,10 +87,10 @@ Router createRouter() {
 }
 
 void main() async {
-  // Usa el puerto proporcionado por Cloud Run
+  // Usa el puerto proporcionado por Cloud Run (o 8080 por defecto)
   final port = int.parse(Platform.environment['PORT'] ?? '8080');
 
-  // Cierre limpio
+  // Configura cierre limpio al recibir señales de terminación
   unawaited(ProcessSignal.sigint.watch().listen((_) async {
     await yt.close();
     exit(0);
