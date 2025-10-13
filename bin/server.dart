@@ -87,8 +87,10 @@ Router createRouter() {
 }
 
 void main() async {
-  // Asegurar cierre limpio del cliente HTTP
-  exitCode = 0;
+  // Usa el puerto proporcionado por Cloud Run
+  final port = int.parse(Platform.environment['PORT'] ?? '8080');
+
+  // Cierre limpio
   unawaited(ProcessSignal.sigint.watch().listen((_) async {
     await yt.close();
     exit(0);
@@ -102,6 +104,6 @@ void main() async {
       .addMiddleware(logRequests())
       .addHandler(corsMiddleware(createRouter()));
 
-  final server = await shelf_io.serve(handler, '0.0.0.0', 8080);
-  print('✅ Servidor corriendo en http://localhost:8080');
+  final server = await shelf_io.serve(handler, '0.0.0.0', port);
+  print('✅ Servidor corriendo en http://0.0.0.0:$port');
 }
