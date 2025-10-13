@@ -7,34 +7,8 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
 final yt = YoutubeExplode();
 
-// Middleware CORS
-Handler corsMiddleware(Handler handler) {
-  return (Request request) async {
-    if (request.method == 'OPTIONS') {
-      return Response.ok('', headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-      });
-    }
-
-    final response = await handler(request);
-    return response.change(headers: {
-      ...response.headers,
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    });
-  };
-}
-
 Router createRouter() {
   final router = Router();
-
-  // Ruta de prueba para Cloud Run (healthcheck)
-  router.get('/', (Request req) {
-    return Response.ok('✅ Esplotify API corriendo correctamente');
-  });
 
   // Búsqueda de videos
   router.get('/search', (Request req) async {
@@ -47,8 +21,8 @@ Router createRouter() {
       final videos = await yt.search.getVideos(query);
       final results = videos.map((v) => {
         'id': v.id.value,
-        'title': v.title,
-        'author': v.author,
+        'title': v.title ?? 'Sin título',
+        'author': v.author ?? 'Autor desconocido',
         'duration': v.duration?.inSeconds ?? 0,
       }).toList();
 
@@ -56,13 +30,14 @@ Router createRouter() {
         jsonEncode(results),
         headers: {'Content-Type': 'application/json'},
       );
-    } catch (e, stack) {
-      stderr.writeln('🔍 Error en /search: $e\n$stack');
-      return Response.internalServerError(body: 'Error al buscar videos');
+    } catch (e, stackTrace) {
+      // Opcional: imprime el error en los logs del contenedor
+      stderr.writeln('Error en /search: $e\n$stackTrace');
+      return Response(500, body: 'Error interno al buscar videos');
     }
   });
 
-  // Stream de audio
+  // Obtener URL de stream de audio
   router.get('/stream', (Request req) async {
     final id = req.url.queryParameters['id'];
     if (id == null || id.isEmpty) {
@@ -76,27 +51,26 @@ Router createRouter() {
         return Response(404, body: 'No se encontró stream de audio');
       }
 
+      final streamUrl = audioStream.url.toString();
+
       return Response.ok(
-        jsonEncode({'url': audioStream.url.toString()}),
+        jsonEncode({'url': streamUrl}),
         headers: {'Content-Type': 'application/json'},
       );
-    } catch (e, stack) {
-      stderr.writeln('🔊 Error en /stream: $e\n$stack');
-      return Response.internalServerError(body: 'Error al obtener stream de audio');
+    } catch (e, stackTrace) {
+      stderr.writeln('Error en /stream: $e\n$stackTrace');
+      return Response(500, body: 'Error al obtener el stream de audio');
     }
   });
 
   return router;
 }
 
-Future<void> main() async {
-  final port = int.parse(Platform.environment['PORT'] ?? '8080');
-
+void main() async {
   final handler = const Pipeline()
       .addMiddleware(logRequests())
-      .addHandler(corsMiddleware(createRouter()));
+      .addHandler(createRouter());
 
-  final server = await shelf_io.serve(handler, InternetAddress.anyIPv4, port);
-  print('🚀 Servidor escuchando en puerto ${server.port}');
-  print('🌍 URL: http://localhost:${server.port}');
+  final server = await shelf_io.serve(handler, '0.0.0.0', 8080);
+  print('Servidor corriendo en http://localhost:8080');
 }
