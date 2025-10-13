@@ -46,20 +46,57 @@ Router createRouter() {
   router.get('/stream', (Request req) async {
     final id = req.url.queryParameters['id'];
     if (id == null || id.isEmpty) {
-      return Response(400, body: 'Falta parámetro "id"');
+      return Response(400, 
+        body: jsonEncode({
+          'error': 'Falta parámetro "id"',
+          'status': 400
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept',
+        }
+      );
     }
 
     try {
+      print('Obteniendo manifest para video ID: $id');
       final manifest = await yt.videos.streams.getManifest(id);
-      final audioStream = manifest.audioOnly.withHighestBitrate();
-      if (audioStream == null) {
-        return Response(404, body: 'No se encontró stream de audio');
+      
+      // Obtener todos los streams de audio disponibles
+      final audioStreams = manifest.audioOnly.toList();
+      
+      if (audioStreams.isEmpty) {
+        return Response(404,
+          body: jsonEncode({
+            'error': 'No se encontraron streams de audio',
+            'status': 404,
+            'videoId': id
+          }),
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept',
+          }
+        );
       }
 
+      // Ordenar por bitrate y tomar el más alto
+      audioStreams.sort((a, b) => b.bitrate.compareTo(a.bitrate));
+      final audioStream = audioStreams.first;
+      
+      print('Stream encontrado: ${audioStream.bitrate} bps, codec: ${audioStream.codec}');
       final streamUrl = audioStream.url.toString();
 
       return Response.ok(
-        jsonEncode({'url': streamUrl}),
+        jsonEncode({
+          'url': streamUrl,
+          'bitrate': audioStream.bitrate.bitsPerSecond,
+          'codec': audioStream.codec.name,
+          'container': audioStream.container.name,
+        }),
         headers: {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
@@ -68,8 +105,21 @@ Router createRouter() {
         },
       );
     } catch (e, stackTrace) {
-      stderr.writeln('Error en /stream: $e\n$stackTrace');
-      return Response(500, body: 'Error al obtener el stream de audio');
+      print('Error detallado: $e\n$stackTrace');
+      return Response(500,
+        body: jsonEncode({
+          'error': 'Error al obtener el stream de audio',
+          'message': e.toString(),
+          'status': 500,
+          'videoId': id
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept',
+        }
+      );
     }
   });
 
