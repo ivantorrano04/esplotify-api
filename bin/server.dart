@@ -4,6 +4,7 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
+import 'package:shelf_cors_headers/shelf_cors_headers.dart';
 
 final yt = YoutubeExplode();
 
@@ -69,6 +70,7 @@ Router createRouter() {
 void main() async {
   final handler = const Pipeline()
       .addMiddleware(logRequests())
+      .addMiddleware(corsHeaders()) // <-- Agrega esto
       .addHandler(createRouter());
 
   final server = await shelf_io.serve(handler, '0.0.0.0', 8080);
