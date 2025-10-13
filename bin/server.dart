@@ -29,7 +29,12 @@ Router createRouter() {
 
       return Response.ok(
         jsonEncode(results),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept',
+        },
       );
     } catch (e, stackTrace) {
       // Opcional: imprime el error en los logs del contenedor
@@ -56,7 +61,12 @@ Router createRouter() {
 
       return Response.ok(
         jsonEncode({'url': streamUrl}),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept',
+        },
       );
     } catch (e, stackTrace) {
       stderr.writeln('Error en /stream: $e\n$stackTrace');
@@ -68,9 +78,19 @@ Router createRouter() {
 }
 
 void main() async {
-  final handler = const Pipeline()
+  // Configuración personalizada de CORS
+  final corsMiddleware = createCorsHeadersMiddleware(
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept',
+      'Access-Control-Allow-Credentials': 'true',
+    },
+  );
+
+  final handler = Pipeline()
       .addMiddleware(logRequests())
-      .addMiddleware(corsHeaders()) // <-- Agrega esto
+      .addMiddleware(corsMiddleware)
       .addHandler(createRouter());
 
   final server = await shelf_io.serve(handler, '0.0.0.0', 8080);
