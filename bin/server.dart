@@ -127,9 +127,8 @@ Router createRouter() {
 }
 
 void main() async {
-  // Configurar el puerto desde la variable de entorno
+  // Obtener el puerto de la variable de entorno PORT
   final port = int.parse(Platform.environment['PORT'] ?? '8080');
-  final ip = Platform.environment['HOST'] ?? '0.0.0.0';
 
   final handler = Pipeline()
       .addMiddleware(logRequests())
@@ -141,10 +140,16 @@ void main() async {
       .addHandler(createRouter());
 
   try {
-    final server = await shelf_io.serve(handler, ip, port);
+    final server = await shelf_io.serve(
+      handler,
+      InternetAddress.anyIPv4, // Esto es equivalente a 0.0.0.0
+      port,
+    );
     print('Servidor corriendo en http://${server.address.host}:${server.port}');
-  } catch (e) {
-    print('Error al iniciar el servidor: $e');
+  } catch (e, stackTrace) {
+    print('Error al iniciar el servidor:');
+    print('Error: $e');
+    print('Stack trace: $stackTrace');
     exit(1);
   }
 }
