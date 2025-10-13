@@ -37,7 +37,6 @@ Router createRouter() {
         },
       );
     } catch (e, stackTrace) {
-      // Opcional: imprime el error en los logs del contenedor
       stderr.writeln('Error en /search: $e\n$stackTrace');
       return Response(500, body: 'Error interno al buscar videos');
     }
@@ -78,19 +77,13 @@ Router createRouter() {
 }
 
 void main() async {
-  // Configuración personalizada de CORS
-  final corsMiddleware = createCorsHeadersMiddleware(
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept',
-      'Access-Control-Allow-Credentials': 'true',
-    },
-  );
-
   final handler = Pipeline()
       .addMiddleware(logRequests())
-      .addMiddleware(corsMiddleware)
+      .addMiddleware(corsHeaders(headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept',
+      }))
       .addHandler(createRouter());
 
   final server = await shelf_io.serve(handler, '0.0.0.0', 8080);
