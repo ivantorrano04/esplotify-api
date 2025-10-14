@@ -16,6 +16,7 @@ void main() async {
 
     final yt = YoutubeExplode();
     try {
+      // Busca los 10 primeros resultados
       final results = await yt.search.search(query).take(10).toList();
 
       final videos = results
@@ -46,7 +47,11 @@ void main() async {
 
     final yt = YoutubeExplode();
     try {
-      final manifest = await yt.videos.streams.getManifest(videoId);
+      // Obtiene el manifiesto de streams usando clientes compatibles
+      final manifest = await yt.videos.streams.getManifest(videoId,
+          ytClients: [YoutubeApiClient.ios, YoutubeApiClient.androidVr]);
+
+      // Selecciona el primer stream de audio disponible
       final audioStream = manifest.audioOnly.first;
       final audioUrl = audioStream.url.toString();
 
@@ -63,7 +68,9 @@ void main() async {
   final handler = const Pipeline().addMiddleware(logRequests()).addHandler(router);
 
   // Escucha en el puerto que Cloud Run asigna
-  final port = int.tryParse(const String.fromEnvironment('PORT', defaultValue: '8080')) ?? 8080;
+  final port =
+      int.tryParse(const String.fromEnvironment('PORT', defaultValue: '8080')) ??
+          8080;
   final server = await shelf_io.serve(handler, '0.0.0.0', port);
   print('Server listening on port ${server.port}');
 }
