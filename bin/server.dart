@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
@@ -14,9 +13,7 @@ Router createRouter() {
   // Endpoint: búsqueda de videos
   router.get('/search', (Request req) async {
     final query = req.url.queryParameters['q'] ?? '';
-    if (query.isEmpty) {
-      return Response(400, body: 'Falta parámetro "q"');
-    }
+    if (query.isEmpty) return Response(400, body: 'Falta parámetro "q"');
 
     try {
       final videos = await yt.search.getVideos(query);
@@ -28,7 +25,7 @@ Router createRouter() {
       }).toList();
 
       return Response.ok(
-        jsonEncode(results),
+        results.toString(),
         headers: {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
@@ -36,89 +33,48 @@ Router createRouter() {
           'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept',
         },
       );
-    } catch (e, stackTrace) {
-      stderr.writeln('Error en /search: $e\n$stackTrace');
+    } catch (e, st) {
+      stderr.writeln('Error en /search: $e\n$st');
       return Response(500, body: 'Error interno al buscar videos');
     }
   });
 
-  // Endpoint: obtener URL de stream de audio
+  // Endpoint: stream de audio directamente
   router.get('/stream', (Request req) async {
     final id = req.url.queryParameters['id'];
     if (id == null || id.isEmpty) {
-      return Response(
-        400,
-        body: jsonEncode({
-          'error': 'Falta parámetro "id"',
-          'status': 400
-        }),
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept',
-        },
-      );
+      return Response(400,
+          body: 'Falta parámetro "id"',
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          });
     }
 
     try {
-      print('Obteniendo manifest para video ID: $id');
       final manifest = await yt.videos.streams.getManifest(id);
       final audioStreams = manifest.audioOnly.toList();
 
       if (audioStreams.isEmpty) {
-        return Response(
-          404,
-          body: jsonEncode({
-            'error': 'No se encontraron streams de audio',
-            'status': 404,
-            'videoId': id
-          }),
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept',
-          },
-        );
+        return Response(404, body: 'No se encontraron streams de audio');
       }
 
-      audioStreams.sort((a, b) => b.bitrate.compareTo(a.bitrate));
-      final audioStream = audioStreams.first;
+      // Tomamos el de mayor bitrate
+      final audioStreamInfo = audioStreams.first;
+      final audioStream = await yt.videos.streams.get(audioStreamInfo);
 
-      print('Stream encontrado: ${audioStream.bitrate} bps, codec: ${audioStream.codec}');
-      final streamUrl = audioStream.url.toString();
-
+      // Devuelve los bytes de audio directamente
       return Response.ok(
-        jsonEncode({
-          'url': streamUrl,
-          'bitrate': audioStream.bitrate.bitsPerSecond,
-          'container': audioStream.container.name,
-        }),
+        audioStream,
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'audio/mpeg', // o 'audio/webm' según audioStreamInfo.container
           'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS',
         },
       );
-    } catch (e, stackTrace) {
-      print('Error detallado: $e\n$stackTrace');
-      return Response(
-        500,
-        body: jsonEncode({
-          'error': 'Error al obtener el stream de audio',
-          'message': e.toString(),
-          'status': 500,
-          'videoId': id
-        }),
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept',
-        },
-      );
+    } catch (e, st) {
+      print('Error en /stream: $e\n$st');
+      return Response.internalServerError(body: 'Error al obtener el audio');
     }
   });
 
@@ -138,15 +94,9 @@ void main() async {
       .addHandler(createRouter());
 
   try {
-    final server = await shelf_io.serve(
-      handler,
-      InternetAddress.anyIPv4,
-      port,
-    );
-
+    final server = await shelf_io.serve(handler, InternetAddress.anyIPv4, port);
     print('Servidor corriendo en http://${server.address.host}:${server.port}');
 
-    // Escucha señales de cierre sin usar "unawaited"
     ProcessSignal.sigint.watch().listen((_) async {
       print('Recibida señal SIGINT. Cerrando servidor...');
       await server.close();
@@ -160,9 +110,8 @@ void main() async {
       await yt.close();
       exit(0);
     });
-  } catch (e, stackTrace) {
-    print('Error al iniciar el servidor: $e');
-    print(stackTrace);
+  } catch (e, st) {
+    print('Error al iniciar el servidor: $e\n$st');
     exit(1);
   }
 }
