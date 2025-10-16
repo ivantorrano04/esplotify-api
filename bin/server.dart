@@ -50,27 +50,22 @@ void main() async {
   });
 
   // --- Obtener la URL del stream de audio ---
-  app.get('/audio', (Request req) async {
-    final id = req.url.queryParameters['id'];
-    if (id == null || id.isEmpty) {
-      return _cors(Response(400, body: 'Missing video id'));
-    }
+router.get('/audio', (Request req) async {
+  final id = req.url.queryParameters['id'];
+  if (id == null) {
+    return Response.badRequest(body: 'Missing id');
+  }
 
-    try {
-      final manifest = await yt.videos.streamsClient.getManifest(id);
-      final audio = manifest.audioOnly.withHighestBitrate();
+  try {
+    final manifest = await yt.videos.streamsClient.getManifest(id);
+    final audio = manifest.audioOnly.withHighestBitrate();
+    return Response.ok(jsonEncode({'url': audio.url.toString()}),
+        headers: {'Content-Type': 'application/json'});
+  } catch (e) {
+    return Response.internalServerError(body: e.toString());
+  }
+});
 
-      if (audio == null) {
-        return _cors(Response(404, body: 'No audio stream found'));
-      }
-
-      // En lugar de redirigir, devolvemos el URL de stream directo
-      return _cors(Response.ok(jsonEncode({'url': audio.url.toString()}),
-          headers: {'Content-Type': 'application/json'}));
-    } catch (e) {
-      return _cors(Response.internalServerError(body: 'Error: $e'));
-    }
-  });
 
   // --- CORS preflight ---
   app.options('/<ignored|.*>', _optionsHandler);
