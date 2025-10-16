@@ -56,7 +56,7 @@ void main() async {
     }
   });
 
-  // --- Proxy de audio: transmite el stream directamente ---
+  // --- Proxy de audio: transmite el stream correctamente ---
   app.get('/audio', (Request req) async {
     final id = req.url.queryParameters['id'];
     if (id == null) {
@@ -67,24 +67,24 @@ void main() async {
       final manifest = await yt.videos.streamsClient.getManifest(id);
       final audioStream = manifest.audioOnly.withHighestBitrate();
 
-      final audioUrl = audioStream.url.toString();
       final client = HttpClient();
-      final request = await client.getUrl(Uri.parse(audioUrl));
-      request.headers.add('User-Agent',
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36');
+      final request = await client.getUrl(Uri.parse(audioStream.url.toString()));
+      request.headers.add(
+        'User-Agent',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+      );
       final response = await request.close();
 
-      // Determinar el tipo MIME desde la extensión del contenedor
+      // Determinar el tipo MIME
       final ext = audioStream.container.name.toLowerCase();
       String? mimeType = lookupMimeType('file.$ext');
       if (mimeType == null) {
         mimeType = ext == 'webm' ? 'audio/webm' : 'audio/mp4';
       }
 
-      // Retornar un stream de bytes con Content-Type y Content-Length correctos
       return _cors(Response(
         200,
-        body: response,
+        body: response.cast<List<int>>(), // <- Stream de bytes correcto
         headers: {
           'Content-Type': mimeType,
           'Content-Length': response.contentLength.toString(),
@@ -94,8 +94,7 @@ void main() async {
       ));
     } catch (e, stack) {
       print('❌ Error en /audio?id=$id: $e\n$stack');
-      return _cors(
-          Response.internalServerError(body: 'Audio stream unavailable'));
+      return _cors(Response.internalServerError(body: 'Audio stream unavailable'));
     }
   });
 
