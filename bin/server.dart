@@ -71,7 +71,7 @@ void main() async {
       return _cors(Response.ok(
         response,
         headers: {
-          'Content-Type': audioStream.container.mimeType,
+          'Content-Type': audioStream.container.contentType.mimeType,
           'Cache-Control': 'no-cache',
         },
       ));
