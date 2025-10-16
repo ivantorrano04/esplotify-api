@@ -33,7 +33,7 @@ void main() async {
     final searchResults = await yt.search.search(query);
     final List<Map<String, dynamic>> videos = [];
 
-    await for (final result in searchResults) {
+    for (final result in searchResults) {
       if (result is Video) {
         videos.add({
           'id': result.id.value,
