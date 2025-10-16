@@ -30,25 +30,29 @@ void main() async {
       return _cors(Response(400, body: 'Missing query parameter q'));
     }
 
-    final searchResults = await yt.search.search(query);
-    final List<Map<String, dynamic>> videos = [];
+    try {
+      final searchResults = await yt.search.search(query);
+      final List<Map<String, dynamic>> videos = [];
 
-    for (final result in searchResults) {
-      if (result is Video) {
-        videos.add({
-          'id': result.id.value,
-          'title': result.title,
-          'author': result.author,
-          'duration': result.duration?.inSeconds ?? 0,
-        });
+      for (final result in searchResults) {
+        if (result is Video) {
+          videos.add({
+            'id': result.id.value,
+            'title': result.title,
+            'author': result.author,
+            'duration': result.duration?.inSeconds ?? 0,
+          });
+        }
+        if (videos.length >= 10) break;
       }
-      if (videos.length >= 10) break;
-    }
 
-    return _cors(Response.ok(
-      jsonEncode(videos),
-      headers: {'Content-Type': 'application/json'},
-    ));
+      return _cors(Response.ok(
+        jsonEncode(videos),
+        headers: {'Content-Type': 'application/json'},
+      ));
+    } catch (e) {
+      return _cors(Response.internalServerError(body: 'Search failed: $e'));
+    }
   });
 
   // --- Proxy de audio: transmite el stream directamente ---
@@ -64,30 +68,35 @@ void main() async {
 
       final client = HttpClient();
       final request = await client.getUrl(Uri.parse(audioStream.url.toString()));
-      request.headers
-          .add('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36');
+      request.headers.add(
+        'User-Agent',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+      );
 
-      final responseStream = await request.close();
+      final response = await request.close();
 
-      // Deduce el MIME type desde la extensión del contenedor (mp4, webm, etc.)
+      // Determinar el tipo MIME desde la extensión del contenedor
       final ext = audioStream.container.name.toLowerCase();
-      String mimeType = lookupMimeType('audio.$ext') ??
-          (ext == 'webm' ? 'audio/webm' : 'audio/mp4');
+      String? mimeType = lookupMimeType('file.$ext');
+      if (mimeType == null) {
+        mimeType = ext == 'webm' ? 'audio/webm' : 'audio/mp4';
+      }
 
       return _cors(Response.ok(
-        responseStream,
+        response,
         headers: {
           'Content-Type': mimeType,
-          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
         },
       ));
     } catch (e, stack) {
-      print('❌ Audio error for ID $id: $e\n$stack');
-      return _cors(Response.internalServerError(body: 'Failed to load audio'));
+      print('❌ Error en /audio?id=$id: $e\n$stack');
+      return _cors(Response.internalServerError(body: 'Audio stream unavailable'));
     }
   });
 
-  // --- Manejo de CORS preflight ---
+  // --- Manejo de CORS preflight para todas las rutas ---
   app.options('/<ignored|.*>', _optionsHandler);
 
   // --- Iniciar servidor ---
