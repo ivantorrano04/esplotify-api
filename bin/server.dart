@@ -4,6 +4,7 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
+import 'package:mime/mime.dart';
 
 final yt = YoutubeExplode();
 
@@ -63,15 +64,18 @@ void main() async {
 
       final client = HttpClient();
       final request = await client.getUrl(Uri.parse(audioStream.url.toString()));
-      // Simular un navegador para evitar bloqueos
       request.headers.add('User-Agent',
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36');
-      final response = await request.close();
+      final responseStream = await request.close();
+
+      // Obtener MIME del contenedor usando la extensión
+      final extension = audioStream.container.name; // mp4, webm, etc.
+      final mimeType = lookupMimeType('file.$extension') ?? 'audio/mpeg';
 
       return _cors(Response.ok(
-        response,
+        responseStream,
         headers: {
-          'Content-Type': audioStream.container.contentType.mimeType,
+          'Content-Type': mimeType,
           'Cache-Control': 'no-cache',
         },
       ));
