@@ -14,7 +14,8 @@ Response _cors(Response response) => response.change(headers: {
       'Access-Control-Allow-Headers': 'Origin, Content-Type',
     });
 
-Future<Response> _optionsHandler(Request request) async => Response.ok('', headers: {
+Future<Response> _optionsHandler(Request request) async =>
+    Response.ok('', headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Origin, Content-Type',
@@ -66,13 +67,11 @@ void main() async {
       final manifest = await yt.videos.streamsClient.getManifest(id);
       final audioStream = manifest.audioOnly.withHighestBitrate();
 
+      final audioUrl = audioStream.url.toString();
       final client = HttpClient();
-      final request = await client.getUrl(Uri.parse(audioStream.url.toString()));
-      request.headers.add(
-        'User-Agent',
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-      );
-
+      final request = await client.getUrl(Uri.parse(audioUrl));
+      request.headers.add('User-Agent',
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36');
       final response = await request.close();
 
       // Determinar el tipo MIME desde la extensión del contenedor
@@ -82,17 +81,21 @@ void main() async {
         mimeType = ext == 'webm' ? 'audio/webm' : 'audio/mp4';
       }
 
-      return _cors(Response.ok(
-        response,
+      // Retornar un stream de bytes con Content-Type y Content-Length correctos
+      return _cors(Response(
+        200,
+        body: response,
         headers: {
           'Content-Type': mimeType,
+          'Content-Length': response.contentLength.toString(),
           'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Pragma': 'no-cache',
         },
       ));
     } catch (e, stack) {
       print('❌ Error en /audio?id=$id: $e\n$stack');
-      return _cors(Response.internalServerError(body: 'Audio stream unavailable'));
+      return _cors(
+          Response.internalServerError(body: 'Audio stream unavailable'));
     }
   });
 
@@ -101,9 +104,7 @@ void main() async {
 
   // --- Iniciar servidor ---
   final port = int.parse(Platform.environment['PORT'] ?? '8080');
-  final handler = const Pipeline()
-      .addMiddleware(logRequests())
-      .addHandler(app);
+  final handler = const Pipeline().addMiddleware(logRequests()).addHandler(app);
 
   final server = await shelf_io.serve(handler, InternetAddress.anyIPv4, port);
   print('✅ Server running on port ${server.port}');
