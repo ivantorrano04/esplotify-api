@@ -51,7 +51,7 @@ void main() async {
     ));
   });
 
-  // --- Proxy de audio: transmite directamente el stream ---
+  // --- Proxy de audio: transmite el stream directamente ---
   app.get('/audio', (Request req) async {
     final id = req.url.queryParameters['id'];
     if (id == null) {
@@ -64,31 +64,33 @@ void main() async {
 
       final client = HttpClient();
       final request = await client.getUrl(Uri.parse(audioStream.url.toString()));
-      request.headers.add('User-Agent',
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36');
+      request.headers
+          .add('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36');
+
       final responseStream = await request.close();
 
-      // Obtener MIME del contenedor usando la extensión
-      final extension = audioStream.container.name; // mp4, webm, etc.
-      final mimeType = lookupMimeType('file.$extension') ?? 'audio/mpeg';
+      // Deduce el MIME type desde la extensión del contenedor (mp4, webm, etc.)
+      final ext = audioStream.container.name.toLowerCase();
+      String mimeType = lookupMimeType('audio.$ext') ??
+          (ext == 'webm' ? 'audio/webm' : 'audio/mp4');
 
       return _cors(Response.ok(
         responseStream,
         headers: {
           'Content-Type': mimeType,
-          'Cache-Control': 'no-cache',
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
         },
       ));
     } catch (e, stack) {
-      print('Error al obtener audio: $e\n$stack');
-      return _cors(Response.internalServerError(body: e.toString()));
+      print('❌ Audio error for ID $id: $e\n$stack');
+      return _cors(Response.internalServerError(body: 'Failed to load audio'));
     }
   });
 
-  // --- CORS preflight para cualquier ruta ---
+  // --- Manejo de CORS preflight ---
   app.options('/<ignored|.*>', _optionsHandler);
 
-  // --- Arranque del servidor ---
+  // --- Iniciar servidor ---
   final port = int.parse(Platform.environment['PORT'] ?? '8080');
   final handler = const Pipeline()
       .addMiddleware(logRequests())
