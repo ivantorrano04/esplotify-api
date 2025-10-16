@@ -37,6 +37,10 @@ void main() async {
 
       for (final result in searchResults) {
         if (result is Video) {
+          // Comprobar si tiene audio
+          final manifest = await yt.videos.streamsClient.getManifest(result.id.value);
+          if (manifest.audioOnly.isEmpty) continue;
+
           videos.add({
             'id': result.id.value,
             'title': result.title,
@@ -65,6 +69,11 @@ void main() async {
 
     try {
       final manifest = await yt.videos.streamsClient.getManifest(id);
+
+      if (manifest.audioOnly.isEmpty) {
+        return _cors(Response.notFound('Audio stream unavailable'));
+      }
+
       final audioStream = manifest.audioOnly.withHighestBitrate();
 
       final client = HttpClient();
@@ -84,7 +93,7 @@ void main() async {
 
       return _cors(Response(
         200,
-        body: response.cast<List<int>>(), // <- Stream de bytes correcto
+        body: response.cast<List<int>>(),
         headers: {
           'Content-Type': mimeType,
           'Content-Length': response.contentLength.toString(),
